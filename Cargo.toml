@@ -1,0 +1,10 @@
+[package]
+name = "x11-idle-sync"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4.5.17", features = ["derive"] }
+tokio = { version = "1.40.0", features = ["full"] }
+xcb = { version = "1.4.0", features = ["screensaver"] }
+zbus = "4.4.0"
