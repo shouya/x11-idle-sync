@@ -12,8 +12,16 @@ use zbus::{proxy, Connection as ZbusConnection};
 #[command(author, version, about, long_about = None)]
 struct Args {
   /// Idle threshold in seconds
-  #[arg(short, long, default_value_t = 5)]
+  #[arg(short = 't', long, default_value_t = 5)]
   idle_threshold: u64,
+
+  /// Disable resetting idle hint to false on exit
+  #[arg(short = 'N', long)]
+  no_reset_on_exit: bool,
+
+  /// Run as a one-shot idle check (check once and exit)
+  #[arg(short = '1', long)]
+  one_shot: bool,
 }
 
 #[proxy(
@@ -97,6 +105,14 @@ impl IdleMonitor {
     Ok(())
   }
 
+  async fn one_shot_check(&self) -> Result<(), Box<dyn std::error::Error>> {
+    let idle = self.get_idle_duration()?;
+    let state = idle >= self.idle_threshold;
+    self.session_proxy.set_idle_hint(state).await?;
+    println!("User is {}", if state { "idle" } else { "active" });
+    Ok(())
+  }
+
   async fn set_idle_hint_false(
     &self,
   ) -> Result<(), Box<dyn std::error::Error>> {
@@ -139,11 +155,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     args.idle_threshold
   );
 
-  idle_monitor.run(exit_signals).await?;
+  if args.one_shot {
+    idle_monitor.one_shot_check().await?;
+  } else {
+    idle_monitor.run(exit_signals).await?;
+  }
 
-  // Set idle hint to false before exiting
-  idle_monitor.set_idle_hint_false().await?;
-  println!("Idle hint set to false. Exiting.");
+  // Set idle hint to false before exiting, unless disabled
+  if !args.no_reset_on_exit && !args.one_shot {
+    idle_monitor.set_idle_hint_false().await?;
+    println!("Idle hint set to false. Exiting.");
+  }
 
   Ok(())
 }
